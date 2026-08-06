@@ -1,0 +1,70 @@
+name: Gerar APK Leve (Max 25MB)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+env:
+  CI: true
+  EXPO_NO_TELEMETRY: 1
+  APP_VERSION: 1.2.6
+  KEYSTORE_PASSWORD_FALLBACK: BalcaoSeguroCI2026
+
+jobs:
+  build-android:
+    name: Compilar APK Otimizado
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Configurar Node e Java
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Instalar Dependências
+        run: npm install --legacy-peer-deps
+
+      - name: Otimizar Base de Dados (Redução de Tamanho)
+        run: |
+          # Script rápido para remover espaços e campos inúteis dos JSONs gigantes
+          python3 -c "
+          import json, os
+          for f_path in ['src/data/medicamentos.importados.json', 'src/data/medicamentos.enriquecidos.json']:
+              if os.path.exists(f_path):
+                  with open(f_path, 'r') as f:
+                      data = json.load(f)
+                  with open(f_path, 'w') as f:
+                      json.dump(data, f, separators=(',', ':'), ensure_ascii=False)
+          "
+          # Remover assets originais pesados que não vão para o app
+          rm -f assets/brand-icon-original.png
+
+      - name: Prebuild Android
+        run: npx expo prebuild -p android --clean --non-interactive --no-install
+
+      - name: Assinatura Temporária
+        run: |
+          mkdir -p signing
+          keytool -genkeypair -v -storetype PKCS12 -keystore signing/key.keystore -alias balcao -keyalg RSA -keysize 2048 -validity 10000 -storepass <LaTex>{{ env.KEYSTORE_PASSWORD_FALLBACK }} -keypass</LaTex>{{ env.KEYSTORE_PASSWORD_FALLBACK }} -dname "CN=Balcao"
+          printf "storeFile=../signing/key.keystore\nstorePassword=%s\nkeyAlias=balcao\nkeyPassword=%s\n" "<LaTex>{{ env.KEYSTORE_PASSWORD_FALLBACK }}" "</LaTex>{{ env.KEYSTORE_PASSWORD_FALLBACK }}" > android/balcao-seguro-keystore.properties
+          if [ -f "scripts/patch_android_signing.py" ]; then python3 scripts/patch_android_signing.py; fi
+
+      - name: Compilar APK Release
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew clean assembleRelease --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: Balcao-Seguro-v${{ env.APP_VERSION }}-Otimizado
+          path: android/app/build/outputs/apk/release/*.apk
