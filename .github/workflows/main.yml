@@ -1,87 +1,52 @@
-name: Gerar APK Leve (Max 25MB) - Corrigido
+name: Gerar APK - Balcao Seguro
 
 on:
   workflow_dispatch:
   push:
     branches: [main, master]
 
-permissions:
-  contents: read
-
 env:
   CI: true
   EXPO_NO_TELEMETRY: 1
   APP_VERSION: 1.2.6
-  KEYSTORE_PASSWORD_FALLBACK: BalcaoSeguroCI2026
 
 jobs:
-  build-android:
-    name: Compilar APK Otimizado
-    runs-on: ubuntu-24.04
-
+  build:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout do Código
         uses: actions/checkout@v4
 
-      - name: Detectar pasta do projeto
-        id: detect_project_dir
-        run: |
-          PROJECT_DIR="<LaTex>(find . -maxdepth 5 -name package.json -not -path "*/node_modules/*" -printf '%h\n' | head -n 1 || true)"           if [ -z "</LaTex>PROJECT_DIR" ]; then
-            echo "ERRO: package.json nao encontrado. Verifique a estrutura do repositorio."
-            exit 1
-          fi
-          echo "PROJECT_DIR=<LaTex>PROJECT_DIR" >> "</LaTex>GITHUB_ENV"
-          echo "Projeto detectado em: $PROJECT_DIR"
-
-      - name: Configurar Node e Java
+      - name: Configurar Ambiente (Node & Java)
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
       - uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: 17
+          distribution: 'temurin'
+          java-version: '17'
 
-      - name: Instalar Dependências
-        run: |
-          cd "$PROJECT_DIR"
-          npm install --legacy-peer-deps
-
-      - name: Otimizar Base de Dados e Assets (Redução de Tamanho)
-        run: |
-          cd "$PROJECT_DIR"
-          # Script rápido para remover espaços e campos inúteis dos JSONs gigantes
-          python3 -c "
-import json, os
-for f_path in [os.path.join('src', 'data', 'medicamentos.importados.json'), os.path.join('src', 'data', 'medicamentos.enriquecidos.json')]:
-    if os.path.exists(f_path):
-        with open(f_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        with open(f_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, separators=(',', ':'), ensure_ascii=False)
-          "
-          # Remover assets originais pesados que não vão para o app
-          rm -f assets/brand-icon-original.png
+      - name: Instalar Dependencias
+        run: npm install --legacy-peer-deps
 
       - name: Prebuild Android
-        run: |
-          cd "$PROJECT_DIR"
-          npx expo prebuild -p android --clean --non-interactive --no-install
+        run: npx expo prebuild -p android --clean --non-interactive --no-install
 
-      - name: Preparar assinatura release
-        env:
-          ANDROID_KEYSTORE_BASE64: <LaTex>{{ secrets.ANDROID_KEYSTORE_BASE64 }}           ANDROID_KEYSTORE_PASSWORD:</LaTex>{{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: <LaTex>{{ secrets.ANDROID_KEY_ALIAS }}           ANDROID_KEY_PASSWORD:</LaTex>{{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Assinatura Temporaria
         run: |
-          cd "<LaTex>PROJECT_DIR"           mkdir -p signing           if [ -n "</LaTex>{ANDROID_KEYSTORE_BASE64:-}" ]; then
-            echo "<LaTex>ANDROID_KEYSTORE_BASE64" | base64 -d > signing/balcao-seguro-upload-key.keystore             STORE_PASSWORD="</LaTex>ANDROID_KEYSTORE_PASSWORD"
-            KEY_ALIAS="<LaTex>ANDROID_KEY_ALIAS"             KEY_PASSWORD="</LaTex>ANDROID_KEY_PASSWORD"
-          else
-            STORE_PASSWORD="<LaTex>KEYSTORE_PASSWORD_FALLBACK"             KEY_ALIAS="balcao_seguro_upload"             KEY_PASSWORD="</LaTex>KEYSTORE_PASSWORD_FALLBACK"
-            keytool -genkeypair -v -storetype PKCS12 -keystore signing/balcao-seguro-upload-key.keystore -alias "<LaTex>KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 -storepass "</LaTex>STORE_PASSWORD" -keypass "<LaTex>KEY_PASSWORD" -dname "CN=Jean Pierre Andres, OU=CRF-RS 15974, O=Balcao Seguro, L=Passo Fundo, ST=RS, C=BR"           fi           printf "storeFile=../signing/balcao-seguro-upload-key.keystore\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n" "</LaTex>STORE_PASSWORD" "<LaTex>KEY_ALIAS" "</LaTex>KEY_PASSWORD" > android/balcao-seguro-keystore.properties
+          mkdir -p signing
+          keytool -genkeypair -v -storetype PKCS12 -keystore signing/key.keystore -alias balcao -keyalg RSA -keysize 2048 -validity 10000 -storepass Balcao2026 -keypass Balcao2026 -dname "CN=Balcao"
+          printf "storeFile=../signing/key.keystore\nstorePassword=Balcao2026\nkeyAlias=balcao\nkeyPassword=Balcao2026" > android/balcao-seguro-keystore.properties
           if [ -f "scripts/patch_android_signing.py" ]; then python3 scripts/patch_android_signing.py; fi
 
       - name: Compilar APK Release
         run: |
-          cd "<LaTex>PROJECT_DIR/android"           chmod +x gradlew           ./gradlew clean assembleRelease --no-daemon        - name: Upload APK         uses: actions/upload-artifact@v4         with:           name: Balcao-Seguro-v</LaTex>{{ env.APP_VERSION }}-Otimizado
-          path: "${{ env.PROJECT_DIR }}/android/app/build/outputs/apk/release/*.apk"
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Upload do APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Balcao-Seguro-APK
+          path: android/app/build/outputs/apk/release/*.apk
