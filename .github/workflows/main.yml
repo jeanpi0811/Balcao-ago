@@ -12,31 +12,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node e Java
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - uses: actions/setup-java@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Build do Projeto
+      - name: Instalar e Compilar
         run: |
-          # Encontrar a pasta que contem o package.json
-          TARGET_DIR=<LaTex>(find . -name "package.json" -not -path "*/node_modules/*" -exec dirname {} \;)           echo "Entrando na pasta:</LaTex>TARGET_DIR"
-          cd "$TARGET_DIR"
-          
-          # Comandos de instalacao e build
+          # 1. Instala dependencias
           npm install --legacy-peer-deps
+          
+          # 2. Gera arquivos nativos
           npx expo prebuild -p android --clean --non-interactive --no-install
           
-          # Criar assinatura temporaria
+          # 3. Configura assinatura
           mkdir -p signing
           keytool -genkeypair -v -storetype PKCS12 -keystore signing/key.keystore -alias balcao -keyalg RSA -keysize 2048 -validity 10000 -storepass Balcao2026 -keypass Balcao2026 -dname "CN=Balcao"
           printf "storeFile=../signing/key.keystore\nstorePassword=Balcao2026\nkeyAlias=balcao\nkeyPassword=Balcao2026" > android/balcao-seguro-keystore.properties
           
-          # Gerar APK
+          # 4. Gera o APK
           cd android
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
@@ -45,4 +45,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Balcao-Seguro-APK
-          path: "**/android/app/build/outputs/apk/release/*.apk"
+          path: android/app/build/outputs/apk/release/*.apk
