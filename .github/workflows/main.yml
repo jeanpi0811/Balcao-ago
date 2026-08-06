@@ -1,4 +1,4 @@
-name: Gerar APK - Balcao Seguro (Resolvido)
+name: Gerar APK - Extrair e Compilar
 
 on:
   workflow_dispatch:
@@ -12,20 +12,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Diagnostico e Localizacao
-        id: locate
+      - name: Extrair Projeto e Localizar
         run: |
-          echo "--- ESTRUTURA ATUAL DO REPOSITORIO ---"
-          find . -maxdepth 3 -not -path '*/.*'
-          
-          # Procura o package.json e define a pasta raiz do projeto
-          PKG_PATH=<LaTex>(find . -name "package.json" -not -path "*/node_modules/*" | head -n 1)           if [ -z "</LaTex>PKG_PATH" ]; then
-            echo "ERRO: package.json NAO ENCONTRADO! Verifique se voce subiu os arquivos corretamente."
-            exit 1
+          echo "Buscando arquivo ZIP..."
+          ZIP_FILE=<LaTex>(find . -name "*.zip" | head -n 1)                      if [ -n "</LaTex>ZIP_FILE" ]; then
+            echo "Extraindo <LaTex>ZIP_FILE..."             unzip -q "</LaTex>ZIP_FILE" -d projeto_extraido
+            # Localiza onde o package.json foi parar depois de extrair
+            PROJ_DIR=<LaTex>(find ./projeto_extraido -name "package.json" -exec dirname {} \;)             echo "PROJ_DIR=</LaTex>PROJ_DIR" >> <LaTex>GITHUB_ENV           else             echo "Nenhum ZIP encontrado. Tentando raiz..."             echo "PROJ_DIR=." >></LaTex>GITHUB_ENV
           fi
-          
-          PROJ_DIR=<LaTex>(dirname "</LaTex>PKG_PATH")
-          echo "Projeto encontrado em: <LaTex>PROJ_DIR"           echo "PROJ_DIR=</LaTex>PROJ_DIR" >> $GITHUB_ENV
 
       - name: Setup Node e Java
         uses: actions/setup-node@v4
